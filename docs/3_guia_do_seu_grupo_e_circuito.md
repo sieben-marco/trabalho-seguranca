@@ -55,14 +55,15 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
   Quando vocês explicarem as Brechas 1A e 1B para os colegas, digam:
   > *"Além de colocar o `return;` e fechar a rota `/api/manutencao`, lembrem do Requisito 2: não deixem a senha trafegar em texto claro na URL! Usem a função pronta `gerarTokenMD5("admin", SENHA_ADMIN, "OFF")` para validar o parâmetro `token`!"*
 - Os colegas vão atualizar o código (ou você pode carregar direto o `2_smarthome_pos_fix_colegas.ino` para agilizar se o tempo estiver curto).
-- **Como o Seu Grupo Executa o Replay Attack (Break 2):**
-  1. Quando o `admin` executa o comando oficial (`python3 ataques/cliente_admin.py OFF`), a requisição enviada na rede é:
+- **Como o Seu Grupo Executa o Replay Attack (Break 2 com Sniffing Real):**
+  1. Inicie o painel com permissão de captura de rede no notebook:
+     `sudo python3 ataques/painel_ataque_grupo.py`
+  2. Escolha a opção **`[4]`** para ligar o sniffer real (`tcpdump` na interface Wi-Fi, porta `80`).
+  3. Peça para um colega (ou você mesmo no navegador do notebook) fazer login em `http://192.168.4.1/admin` e clicar em **Apagar Luz** (ou rodar `python3 ataques/cliente_admin.py OFF` em outro terminal). A requisição que passa pela rede é:
      `GET /luz?acao=OFF&user=admin&token=bde828655d3115e0f162f96664e6e770`
-  2. O seu script `painel_ataque_grupo.py` (Opção 4) consulta o log de tráfego/telemetria da rede (`/status`) e extrai esse `token` hexadecimal.
-  3. Você também pode pedir para um colega fazer login em `/admin` e clicar em **Apagar Luz** pelo navegador — isso dispara o mesmo comando com Token MD5!
-  4. Você pergunta para a turma: *"Qual é a senha secreta do Admin?"* — **Ninguém sabe**, porque ela está protegida dentro do hash MD5!
-  4. Mas você pergunta: *"Precisamos saber a senha para apagar a luz?"* — Você aperta Enter no script (ou aperta o botão `FLASH` da sua NodeMCU Atacante) para **replicar exatamente o mesmo comando com o mesmo token**.
-  5. A NodeMCU dos colegas recalcula o MD5, vê que o token é idêntico ao esperado e **APAGA O LED AZUL NA HORA!**
+  4. O sniffer real captura esse pacote HTTP no ar na hora, exibe o token extraído e guarda em memória!
+  5. Escolha **`g`** (guardar), use a opção **`[5]`** para acender a luz novamente, e aperte **`[4]` → `Enter`** para disparar o **Replay Attack**.
+  6. Pergunte para a turma: *"Qual é a senha secreta do Admin?"* — **Ninguém sabe**, porque ela está protegida dentro do hash MD5! Mas ao replicar exatamente o comando capturado, a NodeMCU aceita o token e **APAGA O LED AZUL NA HORA!**
 
 ---
 
@@ -75,9 +76,9 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
    python3 ataques/cliente_admin.py ON
    python3 ataques/cliente_admin.py OFF
    ```
-3. Para abrir o painel interativo de ataques do seu grupo:
+3. Para abrir o painel interativo de ataques do seu grupo (use `sudo` para o sniffer `tcpdump`):
    ```bash
-   python3 ataques/painel_ataque_grupo.py
+   sudo python3 ataques/painel_ataque_grupo.py
    ```
 
 ### Usando o `curl` Direto pelo Terminal (Caso queiram mostrar em 1 linha)
@@ -89,10 +90,10 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
   ```bash
   curl "http://192.168.4.1/api/manutencao?cmd=apagar_tudo"
   ```
-- **Break 2 (Captura do tráfego na telemetria + Replay Attack do comando do Admin):**
+- **Break 2 (Sniffing real com `tcpdump` + Replay Attack do comando do Admin):**
   ```bash
-  # 1. Espiona o último pacote autenticado que trafegou no hub:
-  curl "http://192.168.4.1/status"
+  # 1. Em um terminal, capture o comando HTTP trafegando na interface Wi-Fi:
+  sudo tcpdump -i any -A -nn "tcp port 80 and host 192.168.4.1"
   # 2. Replica (Replay) exatamente o comando capturado com o token do Admin:
   curl "http://192.168.4.1/luz?acao=OFF&user=admin&token=bde828655d3115e0f162f96664e6e770"
   ```

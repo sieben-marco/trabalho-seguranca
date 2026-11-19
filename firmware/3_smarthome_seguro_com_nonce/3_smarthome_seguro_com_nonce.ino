@@ -32,7 +32,6 @@ bool luzAcesa = true;
 unsigned long alarmeDesligaEm = 0;
 String nonceAtual = "";
 String ultimoEventoLog = "Sistema Blindado com Nonce Anti-Replay iniciado.";
-String ultimoPacoteRede = "";
 
 void renovarNonce() {
   nonceAtual = String(random(100000, 999999)) + "_" + String(millis());
@@ -60,9 +59,6 @@ void handleControleLuz() {
   String acao  = server.arg("acao");
   String user  = server.arg("user");
   String token = server.arg("token");
-
-  ultimoPacoteRede = "/luz?acao=" + acao + "&user=" + user +
-                     (token != "" ? ("&token=" + token) : "");
 
   if (acao == "ON") {
     luzAcesa = true;
@@ -103,8 +99,7 @@ void handleStatus() {
   String json = "{";
   json += "\"luz_acesa\":" + String(luzAcesa ? "true" : "false") + ",";
   json += "\"nonce_atual\":\"" + nonceAtual + "\",";
-  json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\",";
-  json += "\"ultimo_pacote_rede\":\"" + ultimoPacoteRede + "\"";
+  json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\"";
   json += "}";
   server.send(200, "application/json", json);
 }

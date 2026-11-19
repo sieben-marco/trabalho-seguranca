@@ -83,9 +83,9 @@ Não é necessário usar módulo Relé nem Sensor de Som. O circuito usa apenas 
 
 ### 3. Executar os Scripts no Notebook (Python 3 padrão, sem dependências externas)
 
-Abrir o painel interativo de ataques do seu grupo:
+Abrir o painel interativo de ataques do seu grupo (`sudo` permite que o sniffer `tcpdump` capture pacotes reais na interface de rede):
 ```bash
-python3 ataques/painel_ataque_grupo.py
+sudo python3 ataques/painel_ataque_grupo.py
 ```
 
 Simular o Administrador apagando a luz legitimamente (gera o pacote com Token MD5 na rede para o Replay Attack):
