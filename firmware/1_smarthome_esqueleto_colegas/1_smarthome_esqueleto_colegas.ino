@@ -40,7 +40,6 @@ ESP8266WebServer server(80);
 bool luzAcesa = true;
 unsigned long alarmeDesligaEm = 0;
 String ultimoEventoLog = "Sistema iniciado. Luz Principal ACESA.";
-String ultimoPacoteRede = "";
 
 // ============================================================================
 // FUNÇÕES AUXILIARES
@@ -74,9 +73,6 @@ void handleControleLuz() {
   String user  = server.arg("user");   // "admin" ou "visitante"
   String senha = server.arg("senha");  // Senha opcional
   String token = server.arg("token");  // Token Hash MD5 opcional
-
-  ultimoPacoteRede = "/luz?acao=" + acao + "&user=" + user +
-                     (token != "" ? ("&token=" + token) : "");
 
   // Qualquer perfil pode ligar a luz (ON)
   if (acao == "ON") {
@@ -207,8 +203,7 @@ void handlePainelAdmin() {
 void handleStatus() {
   String json = "{";
   json += "\"luz_acesa\":" + String(luzAcesa ? "true" : "false") + ",";
-  json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\",";
-  json += "\"ultimo_pacote_rede\":\"" + ultimoPacoteRede + "\"";
+  json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\"";
   json += "}";
   server.send(200, "application/json", json);
 }

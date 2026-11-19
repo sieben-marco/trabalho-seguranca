@@ -32,7 +32,6 @@ ESP8266WebServer server(80);
 bool luzAcesa = true;
 unsigned long alarmeDesligaEm = 0;
 String ultimoEventoLog = "Sistema Pós-Fix iniciado. Protegido por Token MD5.";
-String ultimoPacoteRede = "";
 
 String gerarTokenMD5(String usuario, String senha, String acao) {
   MD5Builder md5;
@@ -55,9 +54,6 @@ void handleControleLuz() {
   String acao  = server.arg("acao");
   String user  = server.arg("user");
   String token = server.arg("token");
-
-  ultimoPacoteRede = "/luz?acao=" + acao + "&user=" + user +
-                     (token != "" ? ("&token=" + token) : "");
 
   if (acao == "ON") {
     luzAcesa = true;
@@ -101,8 +97,7 @@ void handleManutencaoFabrica() {
 void handleStatus() {
   String json = "{";
   json += "\"luz_acesa\":" + String(luzAcesa ? "true" : "false") + ",";
-  json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\",";
-  json += "\"ultimo_pacote_rede\":\"" + ultimoPacoteRede + "\"";
+  json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\"";
   json += "}";
   server.send(200, "application/json", json);
 }
