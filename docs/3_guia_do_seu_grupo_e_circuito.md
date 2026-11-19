@@ -1,0 +1,98 @@
+# Guia Secreto do Seu Grupo (Aplicadores / Red Team)
+
+Este documento é o manual de bolso do seu grupo para montar o circuito na protoboard, conduzir o tempo da atividade (30 a 45 minutos) e executar os ataques ao vivo na frente da turma e do professor.
+
+---
+
+## 1. Montagem do Circuito (Apenas NodeMCU + LEDs)
+
+Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor de Som. Vamos usar apenas a **NodeMCU ESP8266** e **2 LEDs** (com resistores de 220Ω a 470Ω):
+
+| Componente | Pino na NodeMCU (Serigrafia) | GPIO no Código | Função na Atividade |
+| :--- | :--- | :--- | :--- |
+| **LED Azul** (Anodo / perna maior) | Pino **`D1`** | `GPIO 5` | **Luz Principal da Casa Inteligente** (Começa ACESA; seu objetivo é apagá-la!) |
+| **LED Vermelho** (Anodo / perna maior) | Pino **`D2`** | `GPIO 4` | **Alarme de Segurança** (Pisca quando uma tentativa de invasão é bloqueada) |
+| **Catodos dos LEDs** (perna menor) | Pino **`G` (GND)** *(via resistor)* | `GND` | Terra comum na protoboard |
+
+> [!TIP]
+> **E se o seu grupo usar uma segunda NodeMCU como "Placa Atacante"?**
+> A segunda NodeMCU (`4_placa_atacante_redteam.ino`) **não precisa de nenhum fio externo**! Ela usa o próprio **LED interno da placa** (`LED_BUILTIN` / `D4`) para indicar que conectou no Wi-Fi dos colegas e usa o próprio botão físico **`FLASH`** (que já vem soldado na NodeMCU, pino `D3` / `GPIO 0`) para disparar o ataque quando você apertar!
+
+---
+
+## 2. Cronograma Minuto a Minuto (Total: 35 a 45 min)
+
+| Tempo | Fase BIBIFI | O que acontece na sala |
+| :--- | :--- | :--- |
+| **00–05 min** | **Introdução** | Seu grupo explica em 3 minutos o cenário do Controlador Smart Home do artigo (Fulton et al., CCS '22) e entrega o arquivo `1_smarthome_esqueleto_colegas.ino` + a folha `2_enunciado_para_os_colegas.md`. |
+| **05–20 min** | **1. BUILD IT** *(15 min)* | Os colegas leem os `TODOs` no código, implementam a checagem de permissão (`admin` vs `visitante`) e gravam na NodeMCU. O LED Azul fica aceso. |
+| **20–27 min** | **2. BREAK IT (Rodada 1)** *(7 min)* | Seu grupo conecta no Wi-Fi `SmartHome_IoT` dos colegas e roda o **Ataque 1** (pelo script Python `painel_ataque_grupo.py` ou pela placa atacante). O LED Azul apaga! Seu grupo explica as falhas encontradas (*Mistake* e *Some Intuitive No Implementation*). |
+| **27–35 min** | **3. FIX IT** *(8 min)* | Os colegas corrigem o `return`, trancam a rota `/api/manutencao` e ativam a validação por **Token Hash MD5** (`gerarTokenMD5`) para não passar a senha em texto aberto. Testam o Ataque 1 e veem que agora dá `403 Bloqueado`! |
+| **35–40 min** | **4. BREAK IT (Rodada 2 - Replay Attack)** *(5 min)* | Você pede para os colegas apagarem e acenderem a luz 1 vez usando o comando oficial do Admin (`cliente_admin.py` ou botão de Admin). Seu grupo captura o token na rede e executa a **Replicação de Comando (Replay Attack)**: o LED Azul **APAGA DE NOVO**! |
+| **40–45 min** | **5. Fechamento Teórico** *(5 min)* | Seu grupo mostra como isso prova a tese do artigo: desenvolvedores corrigem bugs simples (*Mistakes*), mas deixam brechas de protocolo (*Misunderstanding* / *Unintuitive No Implementation*). Mostra rapidamente a solução com *Nonce* (`3_smarthome_seguro_com_nonce.ino`). |
+
+---
+
+## 3. Como Funcionam as 3 Brechas do Exercício (O "Segredo")
+
+### Brecha 1A (Fase Build): *Mistake* de Fluxo de Controle
+- **Base no Artigo:** Seção 3.3 (pág. 1147) — A Equipe T6 trocou o `return` por um `print("FAILED")` durante testes e esqueceu de reverter. O sistema avisava que deu erro, mas executava os comandos mesmo assim.
+- **No Código dos Colegas (`1_smarthome_esqueleto_colegas.ino`):**
+  Na função `handleControleLuz()`, já existe um `if (user != ADMIN_USER) { registrarAlertaSeguranca(...); } else { // TODO ... }` sem nenhuma dica de bug!
+  A função `registrarAlertaSeguranca()` acende o LED Vermelho por 3 segundos e envia o HTTP `403`, **mas não interrompe a função `handleControleLuz()`** se o colega esquecer de colocar `return;` dentro do `if`! E como o código do colega vai ficar dentro do `else`, mesmo que ele coloque `return;` no `else`, quem chamar `/luz?acao=OFF&user=visitante` entra no `if`, pula o `else` e apaga o LED Azul!
+- **Como explorar:**
+  `http://192.168.4.1/luz?acao=OFF&user=visitante`
+
+### Brecha 1B (Fase Build): *Some Intuitive No Implementation* (Rota Esquecida)
+- **Base no Artigo:** Seção 3.1 (pág. 1146) e Seção 5.1 — As Equipes T3, T11 e T12 espalharam verificações de acesso em cada função individual em vez de centralizar. Com a pressa, esqueceram de proteger comandos específicos.
+- **No Código dos Colegas (`1_smarthome_esqueleto_colegas.ino`):**
+  Eles vão focar os 15 minutos protegendo a função `handleControleLuz()` (rota `/luz`). Porém, lá no final do arquivo existe a rota `/api/manutencao?cmd=apagar_tudo`, criada "para testes de fábrica", que apaga o LED Azul diretamente sem chamar a verificação do `admin`!
+- **Importância tática para o seu grupo:** Mesmo que os colegas percebam a Brecha 1A e coloquem o `return;` na rota `/luz`, o seu grupo tem **100% de garantia** de conseguir apagar o LED deles no **Break 1** usando a Brecha 1B (`/api/manutencao?cmd=apagar_tudo`)!
+
+### Brecha 2 (Pós-Fix): *Misunderstanding* + *Unintuitive No Implementation* (Replay Attack)
+- **Base no Artigo:** Seções 3.1 e 3.2 — Os alunos tentam proteger a autenticação sem trafegar a senha aberta usando um Token Hash (`MD5("admin:" + SENHA_ADMIN + ":OFF")`), mas não implementam um **Nonce (número de uso único)** porque isso não foi soletrado passo a passo na especificação (*Unintuitive*).
+- **O que acontece na Fase *Fix It*:**
+  Quando vocês explicarem as Brechas 1A e 1B para os colegas, digam:
+  > *"Além de colocar o `return;` e fechar a rota `/api/manutencao`, lembrem do Requisito 2: não deixem a senha trafegar em texto claro na URL! Usem a função pronta `gerarTokenMD5("admin", SENHA_ADMIN, "OFF")` para validar o parâmetro `token`!"*
+- Os colegas vão atualizar o código (ou você pode carregar direto o `2_smarthome_pos_fix_colegas.ino` para agilizar se o tempo estiver curto).
+- **Como o Seu Grupo Executa o Replay Attack (Break 2):**
+  1. Quando o `admin` executa o comando oficial (`python3 ataques/cliente_admin.py OFF`), a requisição enviada na rede é:
+     `GET /luz?acao=OFF&user=admin&token=bde828655d3115e0f162f96664e6e770`
+  2. O seu script `painel_ataque_grupo.py` (Opção 4) consulta o log de tráfego/telemetria da rede (`/status`) e extrai esse `token` hexadecimal.
+  3. Você também pode pedir para um colega fazer login em `/admin` e clicar em **Apagar Luz** pelo navegador — isso dispara o mesmo comando com Token MD5!
+  4. Você pergunta para a turma: *"Qual é a senha secreta do Admin?"* — **Ninguém sabe**, porque ela está protegida dentro do hash MD5!
+  4. Mas você pergunta: *"Precisamos saber a senha para apagar a luz?"* — Você aperta Enter no script (ou aperta o botão `FLASH` da sua NodeMCU Atacante) para **replicar exatamente o mesmo comando com o mesmo token**.
+  5. A NodeMCU dos colegas recalcula o MD5, vê que o token é idêntico ao esperado e **APAGA O LED AZUL NA HORA!**
+
+---
+
+## 4. Comandos Rápidos para Executar no Dia
+
+### Usando os Scripts em Python (No Notebook do Seu Grupo)
+1. Conecte o Wi-Fi do notebook na rede `SmartHome_IoT` (senha `12345678`).
+2. Para simular o uso legítimo do Admin (acender ou apagar a luz com Token Hash):
+   ```bash
+   python3 ataques/cliente_admin.py ON
+   python3 ataques/cliente_admin.py OFF
+   ```
+3. Para abrir o painel interativo de ataques do seu grupo:
+   ```bash
+   python3 ataques/painel_ataque_grupo.py
+   ```
+
+### Usando o `curl` Direto pelo Terminal (Caso queiram mostrar em 1 linha)
+- **Break 1A (Falha de `return` no fluxo de controle):**
+  ```bash
+  curl "http://192.168.4.1/luz?acao=OFF&user=visitante"
+  ```
+- **Break 1B (Rota de manutenção esquecida sem controle de acesso):**
+  ```bash
+  curl "http://192.168.4.1/api/manutencao?cmd=apagar_tudo"
+  ```
+- **Break 2 (Captura do tráfego na telemetria + Replay Attack do comando do Admin):**
+  ```bash
+  # 1. Espiona o último pacote autenticado que trafegou no hub:
+  curl "http://192.168.4.1/status"
+  # 2. Replica (Replay) exatamente o comando capturado com o token do Admin:
+  curl "http://192.168.4.1/luz?acao=OFF&user=admin&token=bde828655d3115e0f162f96664e6e770"
+  ```
