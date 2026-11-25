@@ -1,6 +1,6 @@
 # Desafio Prático de Segurança IoT: Controlador Smart Home (BIBIFI)
 
-**Tempo de Desenvolvimento (Fase Build):** 15 a 20 minutos
+**Tempo de Desenvolvimento (Fase Build):** 15 minutos
 **Plataforma:** NodeMCU ESP8266 + LEDs (Azul = Luz da Sala | Vermelho = Alarme de Segurança)
 
 ---
@@ -13,21 +13,21 @@ O controlador cria uma rede Wi-Fi própria e possui duas interfaces web:
 - **Painel do Administrador (`http://192.168.4.1/admin`):** Protegido por tela de login (`admin`), permite ligar e apagar a luz principal.
 
 Por questões de segurança física do prédio, o controlador de comandos (`/luz`) deve aplicar **dois níveis de acesso (RBAC)**:
-- **`visitante`**: Pode **LIGAR (`ON`)** a luz da sala, mas **NUNCA pode APAGAR (`OFF`)** a luz.
-- **`admin`**: Único perfil autorizado a **APAGAR (`OFF`)** a luz da sala (além de poder ligá-la).
+- **`visitante`**: Pode **ligar (`ON`)** a luz da sala, mas **nunca pode apagar (`OFF`)** a luz.
+- **`admin`**: Único perfil autorizado a **apagar (`OFF`)** a luz da sala (além de poder ligá-la).
 
 ---
 
 ## 2. Como Conectar e Testar
 
-1. Abra o arquivo `1_smarthome_esqueleto_colegas.ino` na Arduino IDE e faça o upload para a sua NodeMCU.
+1. Mantenha os arquivos `1_smarthome_esqueleto_colegas.ino` e `web.h` juntos na mesma pasta, abra o `.ino` na Arduino IDE e faça o upload para a sua NodeMCU.
 2. Abra o **Monitor Serial** em `115200 baud` para acompanhar os logs.
 3. Conecte seu notebook ou celular na rede Wi-Fi criada pela placa:
    - **Nome da Rede (SSID):** `SmartHome_IoT` *(ou o nome configurado para a sua equipe)*
    - **Senha do Wi-Fi:** `12345678`
 4. Acesse no navegador:
    - Convidado: **`http://192.168.4.1/`**
-   - Administrador: **`http://192.168.4.1/admin`** *(usuário `admin`, senha `seguranca2026`)*
+   - Administrador: **`http://192.168.4.1/admin`** *(usuário `admin`, senha `123`)*
 
 ---
 
@@ -41,14 +41,14 @@ A interface web já está separada, mas a rota de controle do hardware (`/luz`, 
 - Tentativas não autorizadas devem acionar `registrarAlertaSeguranca(...)` (que acende o LED Vermelho de alarme por 3 segundos e retorna HTTP `403`).
 
 ### Requisito 2 — Autenticação do Administrador no Comando `OFF`
-- Quando `acao == "OFF"`, valide a credencial do administrador:
-  - Aceite a `senha` igual a `SENHA_ADMIN` **OU** o `token` correspondente ao hash gerado por `gerarTokenMD5(ADMIN_USER, SENHA_ADMIN, "OFF")`.
-- **Importante para evitar senha aberta na rede:** O painel `/admin` envia o comando usando o **Token Hash MD5** no parâmetro `token` da URL para não expor a senha em texto claro.
+- Quando `acao == "OFF"`, valide a credencial do administrador antes de apagar a luz:
+  - O painel `/admin` envia o parâmetro `token` (em vez da senha em texto claro), calculado pela função `gerarTokenMD5(ADMIN_USER, SENHA_ADMIN, "OFF")`.
+  - Garanta que o `token` recebido corresponda ao hash esperado (você também pode aceitar `senha == SENHA_ADMIN` como alternativa, caso queira testar via URL).
 
 ---
 
 ## 4. Regras da Dinâmica (Build It, Break It, Fix It)
 
-1. **Fase 1 — Build It (15 min):** Implementem a segurança no código e gravem na NodeMCU. A Luz Principal (LED Azul) deve começar **ACESA**.
+1. **Fase 1 — Build It (15 min):** Implementem a segurança no código e gravem na NodeMCU. A Luz Principal (LED Azul) deve começar **acesa**.
 2. **Fase 2 — Break It (7 min):** A equipe atacante vai se conectar na rede Wi-Fi da placa de vocês e tentar **apagar o LED Azul** sem conhecer a senha do `admin`.
 3. **Fase 3 — Fix It (8 min):** Caso a equipe atacante consiga apagar a luz de vocês, eles explicarão a brecha encontrada. Vocês terão 8 minutos para corrigir o código e gravar novamente na placa para o **Desafio Final**.

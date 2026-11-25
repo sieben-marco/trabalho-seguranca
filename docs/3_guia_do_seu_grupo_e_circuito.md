@@ -10,8 +10,8 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
 
 | Componente | Pino na NodeMCU (Serigrafia) | GPIO no Código | Função na Atividade |
 | :--- | :--- | :--- | :--- |
-| **LED Azul** (Anodo / perna maior) | Pino **`D1`** | `GPIO 5` | **Luz Principal da Casa Inteligente** (Começa ACESA; seu objetivo é apagá-la!) |
-| **LED Vermelho** (Anodo / perna maior) | Pino **`D2`** | `GPIO 4` | **Alarme de Segurança** (Pisca quando uma tentativa de invasão é bloqueada) |
+| **LED Azul** (Anodo / perna maior) | Pino **`D1`** | `GPIO 5` | **Luz Principal da Casa Inteligente** (começa acesa; seu objetivo é apagá-la) |
+| **LED Vermelho** (Anodo / perna maior) | Pino **`D2`** | `GPIO 4` | **Alarme de Segurança** (acende por 3 segundos quando uma tentativa é bloqueada e apaga) |
 | **Catodos dos LEDs** (perna menor) | Pino **`G` (GND)** *(via resistor)* | `GND` | Terra comum na protoboard |
 
 > [!TIP]
@@ -24,11 +24,11 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
 
 | Tempo | Fase BIBIFI | O que acontece na sala |
 | :--- | :--- | :--- |
-| **00–05 min** | **Introdução** | Seu grupo explica em 3 minutos o cenário do Controlador Smart Home do artigo (Fulton et al., CCS '22) e entrega o arquivo `1_smarthome_esqueleto_colegas.ino` + a folha `2_enunciado_para_os_colegas.md`. |
-| **05–20 min** | **1. BUILD IT** *(15 min)* | Os colegas leem os `TODOs` no código, implementam a checagem de permissão (`admin` vs `visitante`) e gravam na NodeMCU. O LED Azul fica aceso. |
-| **20–27 min** | **2. BREAK IT (Rodada 1)** *(7 min)* | Seu grupo conecta no Wi-Fi `SmartHome_IoT` dos colegas e roda o **Ataque 1** (pelo script Python `painel_ataque_grupo.py` ou pela placa atacante). O LED Azul apaga! Seu grupo explica as falhas encontradas (*Mistake* e *Some Intuitive No Implementation*). |
-| **27–35 min** | **3. FIX IT** *(8 min)* | Os colegas corrigem o `return`, trancam a rota `/api/manutencao` e ativam a validação por **Token Hash MD5** (`gerarTokenMD5`) para não passar a senha em texto aberto. Testam o Ataque 1 e veem que agora dá `403 Bloqueado`! |
-| **35–40 min** | **4. BREAK IT (Rodada 2 - Replay Attack)** *(5 min)* | Você pede para os colegas apagarem e acenderem a luz 1 vez usando o comando oficial do Admin (`cliente_admin.py` ou botão de Admin). Seu grupo captura o token na rede e executa a **Replicação de Comando (Replay Attack)**: o LED Azul **APAGA DE NOVO**! |
+| **00–05 min** | **Introdução** | Seu grupo explica em 3 minutos o cenário do Controlador Smart Home do artigo (Fulton et al., CCS '22) e entrega a pasta `1_smarthome_esqueleto_colegas/` (`1_smarthome_esqueleto_colegas.ino` + `web.h`) e a folha `2_enunciado_para_os_colegas.md`. |
+| **05–20 min** | **1. Build It** *(15 min)* | Os colegas leem o `TODO` no `.ino`, implementam a checagem de permissão (`admin` vs `visitante`) e gravam na NodeMCU. O LED Azul fica aceso. |
+| **20–27 min** | **2. Break It (Rodada 1)** *(7 min)* | Seu grupo conecta no Wi-Fi `SmartHome_IoT` dos colegas e roda o **Ataque 1** (pelo script Python `painel_ataque_grupo.py`). O LED Azul apaga! Seu grupo explica as falhas encontradas (*Mistake* e *Some Intuitive No Implementation*). |
+| **27–35 min** | **3. Fix It** *(8 min)* | Os colegas corrigem o `return;`, trancam a rota `/api/manutencao` e validam o **Token Hash MD5** (`gerarTokenMD5`). Testam o Ataque 1 e veem que agora dá `403` (bloqueado)! |
+| **35–40 min** | **4. Break It (Rodada 2 — Replay Attack)** *(5 min)* | Você pede para os colegas apagarem e acenderem a luz 1 vez usando o comando oficial do Admin (`/admin` no navegador ou `cliente_admin.py`). Seu grupo captura o token na rede e executa a **replicação de comando (Replay Attack)**: o LED Azul **apaga de novo**! |
 | **40–45 min** | **5. Fechamento Teórico** *(5 min)* | Seu grupo mostra como isso prova a tese do artigo: desenvolvedores corrigem bugs simples (*Mistakes*), mas deixam brechas de protocolo (*Misunderstanding* / *Unintuitive No Implementation*). Mostra rapidamente a solução com *Nonce* (`3_smarthome_seguro_com_nonce.ino`). |
 
 ---
@@ -46,24 +46,24 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
 ### Brecha 1B (Fase Build): *Some Intuitive No Implementation* (Rota Esquecida)
 - **Base no Artigo:** Seção 3.1 (pág. 1146) e Seção 5.1 — As Equipes T3, T11 e T12 espalharam verificações de acesso em cada função individual em vez de centralizar. Com a pressa, esqueceram de proteger comandos específicos.
 - **No Código dos Colegas (`1_smarthome_esqueleto_colegas.ino`):**
-  Eles vão focar os 15 minutos protegendo a função `handleControleLuz()` (rota `/luz`). Porém, lá no final do arquivo existe a rota `/api/manutencao?cmd=apagar_tudo`, criada "para testes de fábrica", que apaga o LED Azul diretamente sem chamar a verificação do `admin`!
-- **Importância tática para o seu grupo:** Mesmo que os colegas percebam a Brecha 1A e coloquem o `return;` na rota `/luz`, o seu grupo tem **100% de garantia** de conseguir apagar o LED deles no **Break 1** usando a Brecha 1B (`/api/manutencao?cmd=apagar_tudo`)!
+  Eles vão focar os 15 minutos protegendo a função `handleControleLuz()` (rota `/luz`). Porém, lá no final do arquivo existe a rota `/api/manutencao?cmd=apagar_tudo`, criada "para diagnóstico de hardware", que apaga o LED Azul diretamente sem chamar a verificação do `admin`!
+- **Importância tática para o seu grupo:** Mesmo que os colegas percebam a Brecha 1A e coloquem o `return;` na rota `/luz`, o seu grupo ainda consegue apagar o LED deles no **Break 1** usando a Brecha 1B (`/api/manutencao?cmd=apagar_tudo`)!
 
 ### Brecha 2 (Pós-Fix): *Misunderstanding* + *Unintuitive No Implementation* (Replay Attack)
 - **Base no Artigo:** Seções 3.1 e 3.2 — Os alunos tentam proteger a autenticação sem trafegar a senha aberta usando um Token Hash (`MD5("admin:" + SENHA_ADMIN + ":OFF")`), mas não implementam um **Nonce (número de uso único)** porque isso não foi soletrado passo a passo na especificação (*Unintuitive*).
 - **O que acontece na Fase *Fix It*:**
   Quando vocês explicarem as Brechas 1A e 1B para os colegas, digam:
-  > *"Além de colocar o `return;` e fechar a rota `/api/manutencao`, lembrem do Requisito 2: não deixem a senha trafegar em texto claro na URL! Usem a função pronta `gerarTokenMD5("admin", SENHA_ADMIN, "OFF")` para validar o parâmetro `token`!"*
+  > *"Além de colocar o `return;` e fechar a rota `/api/manutencao`, confiram se o `TODO` está validando corretamente o `token` gerado por `gerarTokenMD5(ADMIN_USER, SENHA_ADMIN, "OFF")` para a senha não passar em texto claro!"*
 - Os colegas vão atualizar o código (ou você pode carregar direto o `2_smarthome_pos_fix_colegas.ino` para agilizar se o tempo estiver curto).
 - **Como o Seu Grupo Executa o Replay Attack (Break 2 com Sniffing Real):**
   1. Inicie o painel com permissão de captura de rede no notebook:
      `sudo python3 ataques/painel_ataque_grupo.py`
   2. Escolha a opção **`[4]`** para ligar o sniffer real (`tcpdump` na interface Wi-Fi, porta `80`).
-  3. Peça para um colega (ou você mesmo no navegador do notebook) fazer login em `http://192.168.4.1/admin` e clicar em **Apagar Luz** (ou rodar `python3 ataques/cliente_admin.py OFF` em outro terminal). A requisição que passa pela rede é:
-     `GET /luz?acao=OFF&user=admin&token=bde828655d3115e0f162f96664e6e770`
+  3. Peça para um colega (ou você mesmo no navegador do notebook) fazer login em `http://192.168.4.1/admin` (usuário `admin`, senha `123`) e clicar em **Apagar Luz** (ou rodar `python3 ataques/cliente_admin.py OFF` em outro terminal). A requisição que passa pela rede é:
+     `GET /luz?acao=OFF&user=admin&token=09b2acb10fcbb3fb37fb442add35bb36`
   4. O sniffer real captura esse pacote HTTP no ar na hora, exibe o token extraído e guarda em memória!
   5. Escolha **`g`** (guardar), use a opção **`[5]`** para acender a luz novamente, e aperte **`[4]` → `Enter`** para disparar o **Replay Attack**.
-  6. Pergunte para a turma: *"Qual é a senha secreta do Admin?"* — **Ninguém sabe**, porque ela está protegida dentro do hash MD5! Mas ao replicar exatamente o comando capturado, a NodeMCU aceita o token e **APAGA O LED AZUL NA HORA!**
+  6. Pergunte para a turma: *"Qual é a senha secreta do Admin?"* — **Ninguém sabe pela rede**, porque ela está protegida dentro do hash MD5! Mas ao replicar exatamente o comando capturado, a NodeMCU aceita o token e **apaga o LED Azul na hora**!
 
 ---
 
@@ -95,5 +95,5 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
   # 1. Em um terminal, capture o comando HTTP trafegando na interface Wi-Fi:
   sudo tcpdump -i any -A -nn "tcp port 80 and host 192.168.4.1"
   # 2. Replica (Replay) exatamente o comando capturado com o token do Admin:
-  curl "http://192.168.4.1/luz?acao=OFF&user=admin&token=bde828655d3115e0f162f96664e6e770"
+  curl "http://192.168.4.1/luz?acao=OFF&user=admin&token=09b2acb10fcbb3fb37fb442add35bb36"
   ```

