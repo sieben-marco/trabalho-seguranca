@@ -30,14 +30,14 @@ Se você é do **grupo aplicador**, siga esta ordem antes da aula:
 
 ## Mapa de Arquivos: O Que Usar e Quem Recebe o Quê
 
-> **Regra de ouro:** **NÃO** entregue a pasta `ataques/`, os gabaritos `2_`, `3_`, `4_` nem os guias secretos `1_` e `3_` para os colegas antes do final da aula!
+> **Regra de ouro:** **Não** entregue a pasta `ataques/`, os gabaritos `2_`, `3_`, `4_` nem os guias secretos `1_` e `3_` para os colegas antes do final da aula!
 
-### 1. Arquivos para ENTREGAR aos Colegas (Somente estes 2!)
+### 1. Arquivos para entregar aos colegas
 
-| Arquivo | Para que serve |
+| Arquivo / Pasta | Para que serve |
 | :--- | :--- |
 | [`docs/2_enunciado_para_os_colegas.md`](docs/2_enunciado_para_os_colegas.md) | Folha de especificação com regras de negócio (`visitante` vs. `admin`), acesso às páginas `/` e `/admin` e instruções da tarefa de 15 min. |
-| [`firmware/1_smarthome_esqueleto_colegas/1_smarthome_esqueleto_colegas.ino`](firmware/1_smarthome_esqueleto_colegas/1_smarthome_esqueleto_colegas.ino) | Código inicial para os colegas abrirem na Arduino IDE, completarem o bloco `// TODO` em `handleControleLuz()` e gravarem na NodeMCU. |
+| [`firmware/1_smarthome_esqueleto_colegas/`](firmware/1_smarthome_esqueleto_colegas/) (`1_smarthome_esqueleto_colegas.ino` + `web.h`) | Pasta completa do sketch para os colegas abrirem na Arduino IDE (os dois arquivos devem ficar na mesma pasta), completarem o bloco `// TODO` em `handleControleLuz()` e gravarem na NodeMCU. |
 
 *(Se houver mais de um grupo de colegas na sala, peça para cada grupo alterar o `AP_SSID = "SmartHome_IoT"` para `"SmartHome_Equipe1"`, `"SmartHome_Equipe2"`, etc.)*
 
@@ -62,7 +62,7 @@ Não é necessário usar módulo Relé nem Sensor de Som. O circuito usa apenas 
 
 ![Esquema do Circuito](docs/circuito.svg)
 
-- **LED Azul (`D1` / GPIO 5):** Luz Principal da Casa (inicia **ACESA** ao ligar a placa).
+- **LED Azul (`D1` / GPIO 5):** Luz Principal da Casa (inicia **acesa** ao ligar a placa).
 - **LED Vermelho (`D2` / GPIO 4):** Alarme de Segurança (acende por **3 segundos** após tentativa de acesso negado ou login inválido e apaga automaticamente).
 
 ---
@@ -79,7 +79,7 @@ Não é necessário usar módulo Relé nem Sensor de Som. O circuito usa apenas 
 - **SSID:** `SmartHome_IoT`
 - **Senha:** `12345678`
 - **Página do Convidado:** `http://192.168.4.1/`
-- **Página do Administrador (Login):** `http://192.168.4.1/admin` *(usuário: `admin`, senha: `seguranca2026`)*
+- **Página do Administrador (Login):** `http://192.168.4.1/admin` *(usuário: `admin`, senha: `123`)*
 
 ### 3. Executar os Scripts no Notebook (Python 3 padrão, sem dependências externas)
 

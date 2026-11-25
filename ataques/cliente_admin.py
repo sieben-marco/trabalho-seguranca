@@ -1,24 +1,43 @@
 #!/usr/bin/env python3
 """
 Cliente Oficial do Administrador - Smart Home IoT (BIBIFI)
-Simula o aplicativo legítimo do Admin que gera o Token Hash MD5 (sem enviar a
-senha em texto claro na rede) para controlar a Luz Principal na NodeMCU.
+Simula o aplicativo legítimo do administrador gerando o Token Hash MD5
+(sem trafegar a senha em texto claro na rede) para controlar a luz principal.
 
 Uso:
   python3 ataques/cliente_admin.py OFF
   python3 ataques/cliente_admin.py ON
+  python3 ataques/cliente_admin.py OFF --nonce
 """
 
 import hashlib
 import json
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 
 HOST_PADRAO = "http://192.168.4.1"
 USUARIO_ADMIN = "admin"
-SENHA_SECRETA_ADMIN = "seguranca2026"
+SENHA_SECRETA_ADMIN = "123"
+LARGURA = 64
+USA_COR = sys.stdout.isatty()
+
+
+def cor(texto: str, codigo: str) -> str:
+    if not USA_COR:
+        return texto
+    return f"\033[{codigo}m{texto}\033[0m"
+
+
+def negrito(t: str) -> str: return cor(t, "1")
+def fraco(t: str) -> str:   return cor(t, "2")
+def verde(t: str) -> str:   return cor(t, "32")
+def amarelo(t: str) -> str: return cor(t, "33")
+def ciano(t: str) -> str:   return cor(t, "36")
+
+
+def linha(char: str = "─") -> str:
+    return fraco(char * LARGURA)
 
 
 def gerar_token_md5(usuario: str, senha: str, acao: str, nonce: str = "") -> str:
@@ -56,19 +75,27 @@ def executar_comando_admin(acao: str, host: str = HOST_PADRAO, usar_nonce: bool 
     token = gerar_token_md5(USUARIO_ADMIN, SENHA_SECRETA_ADMIN, acao, nonce)
     url = f"{host}/luz?acao={acao}&user={USUARIO_ADMIN}&token={token}"
 
-    print("=" * 68)
-    print("📱 [APP OFICIAL DO ADMIN] Enviando comando autenticado...")
-    print(f"   • Usuário: {USUARIO_ADMIN}")
-    print(f"   • Ação:    {acao}")
+    print(f"\n{linha('═')}")
+    print(f"  {negrito('Cliente Admin')} {fraco('— Smart Home IoT')}")
+    print(f"  {fraco('Alvo  :')} {ciano(host)}")
+    print(linha('═'))
+    print(f"{ciano('▸')} {negrito('Enviando comando autenticado')}")
+    print(f"  {fraco('Usuário :')} {USUARIO_ADMIN}")
+    print(f"  {fraco('Ação    :')} {acao}")
     if nonce:
-        print(f"   • Nonce:   {nonce}")
-    print(f"   • Token MD5 calculado: {token}")
-    print(f"   • Requisição enviada:  GET {url}")
-    print("-" * 68)
+        print(f"  {fraco('Nonce   :')} {nonce}")
+    print(f"  {fraco('Token   :')} {token}")
+    print(f"  {fraco('GET     :')} {url}")
 
     codigo, resposta = requisicao_http(url)
-    print(f"   • Resposta HTTP [{codigo}]: {resposta}")
-    print("=" * 68)
+    print(f"  {fraco('HTTP    :')} [{codigo}] {resposta}")
+    print(linha())
+    if codigo == 200:
+        print(f"  {verde('[Ok]')} Comando executado com sucesso.")
+    elif codigo == 0:
+        print(f"  {amarelo('[Erro]')} Falha de conexão com o controlador.")
+    else:
+        print(f"  {amarelo('[Recusado]')} Controlador retornou HTTP {codigo}.")
 
 
 if __name__ == "__main__":
