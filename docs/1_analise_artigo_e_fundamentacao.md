@@ -57,33 +57,27 @@ Os autores identificaram **145 vulnerabilidades únicas** durante a fase *Build*
 
 ---
 
-## 3. Como a Nossa Atividade de 30–45 Minutos Reproduz o Artigo
+## 3. Como a Nossa Demonstração de ~10 Minutos Reproduz o Artigo
 
-Adaptamos o projeto do artigo (**Controlador IoT de Casa Inteligente**) para rodar em **30 a 45 minutos** utilizando **NodeMCU ESP8266 + LEDs** em rede própria (`SoftAP`).
+Adaptamos o cenário do artigo (**Controlador IoT de Casa Inteligente**) para **3 placas Seeed Studio XIAO ESP32-C6** comunicando por **ESP-NOW** em **4 etapas progressivas**, mantendo uma interface web (`web.h`) no Hub (`XIAO #2`) para o controle por celular/navegador e um Sniffer em modo monitor (`XIAO #3`) ouvindo o rádio no ar:
 
-| Elemento do Artigo (Fulton et al., CCS '22) | Equivalente na Nossa Atividade Prática (30–45 min) |
+| Elemento do Artigo (Fulton et al., CCS '22) | Equivalente na Nossa Demonstração (4 Etapas com XIAO ESP32-C6) |
 | :--- | :--- |
-| **Controlador IoT Smart Home** | NodeMCU ESP8266 controlando a **Luz Principal da Sala (LED Azul)** e o **Alerta de Segurança (LED Vermelho)**. |
-| **Controle de Acesso Baseado em Papéis (RBAC)** | Dois papéis: `admin` (pode ligar e apagar a luz) e `visitante` (só pode consultar status e ligar a luz, nunca apagar). |
-| **Fase 1: Build It (15 min)** | Os colegas recebem o código-esqueleto funcional e implementam as regras de autenticação e autorização na função da luz. |
-| **Vulnerabilidade 1A: *Mistake* (Fluxo de Controle)** | Inspirada literalmente na **Equipe T6 do artigo**: a função `registrarAlertaSeguranca()` acende o LED Vermelho e envia erro HTTP `403`, mas se o aluno não colocar `return;` logo depois, a função segue em frente e apaga o LED Azul! |
-| **Vulnerabilidade 1B: *Some Intuitive No Implementation*** | Inspirada nas **Equipes T3 e T11 do artigo**: os colegas colocam a verificação de senha na rota `/luz`, mas esquecem a rota secundária `/api/manutencao` no final do arquivo. |
-| **Fase 2: Break It — Rodada 1 (7 min)** | Seu grupo explora o *Mistake* ou a rota esquecida, apaga o LED Azul sem senha e explica a falha para os colegas. |
-| **Fase 3: Fix It (8 min)** | Os colegas corrigem o `return;`, trancam a rota secundária e implementam a autenticação por **Token Hash (`MD5(usuario:senha:acao)`)** para não enviar a senha em texto claro no Wi-Fi. |
-| **Fase 4: Break It — Rodada 2: *Replay Attack* (5 min)** | **A grande sacada do exercício:** Como o requisito de uso único (*Nonce*) é *Unintuitive* (não explícito na especificação) e há um *Misunderstanding* sobre hashes estáticos, o seu grupo captura o comando legítimo do Admin via sniffing e **replica o pacote (Replay Attack)**, apagando o LED Azul novamente mesmo sem saber a senha! |
-| **Fase 5: Debriefing e Solução com *Nonce* (5 min)** | Demonstração do código `3_smarthome_seguro_com_nonce.ino`, mostrando que sem segurança no design do protocolo (*Challenge-Response* / *Nonce*), corrigir apenas bugs superficiais não impede ataques de repetição. |
+| **Controlador IoT Smart Home** | **XIAO #1 (Casa)** controlando **Luz Principal (LED Azul `D10`)** e **Alarme Intermitente (LED Vermelho `D9`, 700 ms)** multiplexados com 1 resistor + **XIAO #2 (Hub Web)**. |
+| **Controle de Acesso Baseado em Papéis (RBAC)** | Dois papéis no Hub Web: `admin` (pode ligar, apagar e silenciar o alarme) e `visitante` (só pode consultar status e ligar a luz, nunca apagar). |
+| **Etapa 1: *Mistake* (Fluxo de Controle)** | Inspirada literalmente na **Equipe T6 do artigo**: ao negar `OFF` para `visitante` no Hub (`etapa1_hub_web`), o sistema dispara o alarme vermelho e retorna HTTP `403`, mas por falta de `return;` envia o comando `OFF` pelo rádio ESP-NOW e apaga o LED Azul! Além disso, o tráfego ESP-NOW trafega em Broadcast e texto claro. |
+| **Etapa 2: *Misunderstanding* (AES sem Anti-Replay)** | Corrigido o `return;` e adicionada criptografia **AES-128** em **Unicast** (`etapa2_*`). O Sniffer (`XIAO #3`) não consegue mais decifrar o comando vindo do celular (`16B ?`), mas faz **Replay verbatim** dos bytes cifrados e apaga o LED Azul — provando que confidencialidade não garante autenticidade nem proteção contra repetição. |
+| **Etapa 3: *Unintuitive* / Estado Volátil (Contador em RAM)** | Adiciona-se um **contador sequencial (`seq > ultimoSeq`)** dentro do bloco AES (`etapa3_*`). O Replay normal é bloqueado (disparando o alarme), mas ao **reiniciar / cortar a energia da XIAO #1**, `ultimoSeq` volta a `0` e o mesmo pacote antigo volta a ser aceito (*Reset-to-Zero Replay*). |
+| **Etapa 4: Defesa Completa (Nonce Aleatório)** | Implementa-se **Desafio-Resposta com Nonce de 32 bits gerado por hardware (`esp_random()`)** e validade de 3 segundos (`etapa4_*`). Bloqueia Replay normal e permanece seguro mesmo após reinicialização forçada, disparando o LED Vermelho piscante até novo login válido do administrador. |
 
 ---
 
-## 4. Paralelo Técnico: Servidor Web HTTP vs. Protocolo ESP-NOW
+## 4. Arquitetura Híbrida: Hub Web HTTP + Enlace Sem Fio ESP-NOW
 
-O professor sugeriu explorar o **ESP-NOW** ou um **Servidor Web**. Optamos pelo **Servidor Web HTTP em Rede Própria (`SoftAP`)** para garantir que os colegas consigam programar e testar em 15 minutos, mas **o fenômeno de segurança demonstrado no ataque final é idêntico ao do ESP-NOW**:
+O professor sugeriu explorar o **ESP-NOW** com uma placa em modo Sniffer. Em vez de escolher entre "só Servidor Web" ou "só ESP-NOW sem interface", combinamos ambos em **2 saltos** (como em hubs IoT reais, ex.: Zigbee/Matter):
 
-1. **Como seria no ESP-NOW:**
-   - O ESP-NOW transmite pequenos pacotes binários (`struct_message`) diretamente na camada de enlace (quadros de ação IEEE 802.11) entre o endereço MAC de duas placas ESP8266.
-   - Mesmo quando os alunos colocam um campo `char token[33]` com um hash MD5/SHA-256 dentro do `struct` do ESP-NOW para autenticar o comando `"APAGAR_LUZ"`, qualquer outra placa ESP8266 no mesmo canal Wi-Fi (ou em modo promíscuo/broadcast) pode escutar os bytes desse pacote no ar e retransmiti-los (`esp_now_send`).
-   - Sem um contador monotônico de pacotes ou um desafio aleatório (*Nonce*), o receptor ESP-NOW aceita o pacote clonado e apaga o LED.
-
-2. **Por que o Servidor Web HTTP em Rede Própria é didaticamente superior para 30–45 min:**
-   - **Visibilidade em sala:** Os pacotes, parâmetros (`user=admin&acao=OFF&token=...`) e códigos de resposta (`200 OK` vs `403 Proibido`) podem ser vistos no navegador, no terminal Python ou no Monitor Serial por toda a turma.
-   - **Agilidade no *Build* e no *Fix*:** No ESP-NOW, cada equipe precisaria editar e gravar duas placas a cada alteração (Transmissor + Receptor). Com o Servidor Web, os colegas gravam apenas o Controlador Smart Home e testam imediatamente pelo celular/notebook, enquanto o seu grupo pode atacar tanto pelo notebook quanto usando uma **segunda NodeMCU programada como "Placa Atacante" (`4_placa_atacante_redteam.ino`)**!
+1. **Salto 1 — Celular/Navegador ↔ XIAO #2 (Hub Web via Wi-Fi SoftAP no Canal 1):**
+   - Mantém a interface visual amigável (`web.h`) para demonstrar RBAC (`Convidado` vs. `Administrador`) e exibir em tempo real quando um ataque altera o estado da lâmpada.
+2. **Salto 2 — XIAO #2 (Hub Web) ↔ XIAO #1 (Casa/LEDs via ESP-NOW no Canal 1):**
+   - O comando de atuação viaja pelo ar em quadros 802.11 Action do protocolo **ESP-NOW**.
+   - A **XIAO #3 (Sniffer em modo promíscuo)** escuta o Canal 1 independentemente do Wi-Fi do celular (contornando a proteção anti-replay da camada WPA2/TCP) e demonstra **ao vivo** tanto a captura em texto claro quanto o **Replay Attack verbatim** sobre pacotes **AES-128** criptografados — seguido da quebra do contador em RAM via reset e da defesa definitiva com **Nonce aleatório**.
