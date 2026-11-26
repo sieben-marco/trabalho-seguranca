@@ -6,12 +6,17 @@
  * Estrutura (2 arquivos na mesma pasta):
  *   - 3_smarthome_seguro_com_nonce.ino : Controle de acesso + Nonce dinâmico
  *   - web.h                            : Interface HTML/CSS/JS em PROGMEM
+ *
+ * Hardware: NodeMCU ESP8266 — multiplexação dos LEDs para 1 resistor comum
+ *   - Pino D1 (GPIO 5) -> LED Azul (Luz Principal - inicia acesa)
+ *   - Pino D2 (GPIO 4) -> LED Vermelho (Alarme intermitente até login do admin)
  * ============================================================================
  */
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <MD5Builder.h>
+#include <Ticker.h>
 #include "web.h"
 
 const char* AP_SSID  = "SmartHome_IoT";
@@ -20,14 +25,21 @@ const char* AP_SENHA = "12345678";
 const String ADMIN_USER  = "admin";
 const String SENHA_ADMIN = "123";
 
-const int PIN_LUZ_AZUL    = D1; // GPIO 5
-const int PIN_ALARME_VERM = D2; // GPIO 4
-const unsigned long DURACAO_ALARME_MS = 3000;
+const int PIN_LUZ_AZUL    = D1; // GPIO 5 - Luz Principal
+const int PIN_ALARME_VERM = D2; // GPIO 4 - Alarme de Segurança
+
+// Multiplexação dos LEDs (1 resistor compartilhado) e alarme intermitente
+const unsigned long INTERVALO_PISCA_ALARME_MS = 700; // 700 ms aceso / 700 ms apagado
+const unsigned long INTERVALO_MUX_MS          = 2;   // 2 ms por slot -> 4 slots = 8 ms (125 Hz)
+const uint8_t       SLOTS_MUX                 = 4;   // 3 slots Azul (75%) + 1 slot Vermelho (25%)
 
 ESP8266WebServer server(80);
+Ticker muxTicker;
 
-bool luzAcesa = true;
-unsigned long alarmeDesligaEm = 0;
+volatile bool luzAcesa = true;
+volatile bool alarmeAtivo = false;
+volatile unsigned long alarmeInicioMs = 0;
+uint8_t slotMux = 0;
 String nonceAtual = "";
 String ultimoEventoLog = "Sistema blindado com Nonce anti-replay iniciado.";
 
@@ -44,9 +56,47 @@ String gerarTokenComNonce(String usuario, String senha, String acao, String nonc
   return md5.toString();
 }
 
+void atualizarSaidaLeds() {
+  bool querAzul = luzAcesa;
+  bool querVermelho = alarmeAtivo &&
+    (((millis() - alarmeInicioMs) / INTERVALO_PISCA_ALARME_MS) % 2 == 0);
+
+  // Multiplexação (break-before-make): nunca deixa D1 e D2 em HIGH simultaneamente
+  if (querAzul && querVermelho) {
+    if (slotMux == 0) {
+      digitalWrite(PIN_LUZ_AZUL, LOW);
+      digitalWrite(PIN_ALARME_VERM, HIGH);
+    } else {
+      digitalWrite(PIN_ALARME_VERM, LOW);
+      digitalWrite(PIN_LUZ_AZUL, HIGH);
+    }
+    slotMux = (slotMux + 1) % SLOTS_MUX;
+  } else if (querAzul) {
+    digitalWrite(PIN_ALARME_VERM, LOW);
+    digitalWrite(PIN_LUZ_AZUL, HIGH);
+    slotMux = 0;
+  } else if (querVermelho) {
+    digitalWrite(PIN_LUZ_AZUL, LOW);
+    digitalWrite(PIN_ALARME_VERM, HIGH);
+    slotMux = 0;
+  } else {
+    digitalWrite(PIN_LUZ_AZUL, LOW);
+    digitalWrite(PIN_ALARME_VERM, LOW);
+    slotMux = 0;
+  }
+}
+
 void dispararLedAlarme() {
-  digitalWrite(PIN_ALARME_VERM, HIGH);
-  alarmeDesligaEm = millis() + DURACAO_ALARME_MS;
+  if (!alarmeAtivo) {
+    alarmeInicioMs = millis();
+  }
+  alarmeAtivo = true;
+}
+
+void desligarLedAlarme() {
+  if (alarmeAtivo) {
+    alarmeAtivo = false;
+  }
 }
 
 void registrarAlertaSeguranca(String motivo) {
@@ -67,7 +117,6 @@ void handleControleLuz() {
 
   if (acao == "ON") {
     luzAcesa = true;
-    digitalWrite(PIN_LUZ_AZUL, HIGH);
     ultimoEventoLog = "Luz acesa por [" + (user != "" ? user : "visitante") + "]";
     server.send(
       200,
@@ -90,7 +139,6 @@ void handleControleLuz() {
     }
 
     luzAcesa = false;
-    digitalWrite(PIN_LUZ_AZUL, LOW);
     renovarNonce(); // Invalida o token que acabou de trafegar na rede!
 
     ultimoEventoLog = "Luz apagada com sucesso. Nonce anterior invalidado.";
@@ -110,6 +158,7 @@ void handleAdminLogin() {
   String u = server.arg("usuario");
   String s = server.arg("senha");
   if (u == ADMIN_USER && s == SENHA_ADMIN) {
+    desligarLedAlarme();
     String tokenUnico = gerarTokenComNonce(ADMIN_USER, SENHA_ADMIN, "OFF", nonceAtual);
     server.send(
       200,
@@ -124,9 +173,14 @@ void handleAdminLogin() {
   server.send(403, "application/json", "{\"ok\":false,\"mensagem\":\"Usuário ou senha inválidos.\"}");
 }
 
+void handleManutencaoFabrica() {
+  registrarAlertaSeguranca("Rota /api/manutencao bloqueada.");
+}
+
 void handleStatus() {
   String json = "{";
   json += "\"luz_acesa\":" + String(luzAcesa ? "true" : "false") + ",";
+  json += "\"alarme_ativo\":" + String(alarmeAtivo ? "true" : "false") + ",";
   json += "\"nonce_atual\":\"" + nonceAtual + "\",";
   json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\"";
   json += "}";
@@ -141,8 +195,8 @@ void setup() {
   pinMode(PIN_LUZ_AZUL, OUTPUT);
   pinMode(PIN_ALARME_VERM, OUTPUT);
 
-  digitalWrite(PIN_LUZ_AZUL, HIGH);
-  digitalWrite(PIN_ALARME_VERM, LOW);
+  atualizarSaidaLeds();
+  muxTicker.attach_ms(INTERVALO_MUX_MS, atualizarSaidaLeds);
 
   renovarNonce();
 
@@ -160,6 +214,7 @@ void setup() {
   server.on("/admin", HTTP_POST, handleAdminLogin);
   server.on("/status", HTTP_GET, handleStatus);
   server.on("/luz", HTTP_GET, handleControleLuz);
+  server.on("/api/manutencao", HTTP_GET, handleManutencaoFabrica);
 
   server.begin();
   Serial.println("\n[Anti-Replay] Smart Home iniciado em http://192.168.4.1");
@@ -167,9 +222,4 @@ void setup() {
 
 void loop() {
   server.handleClient();
-
-  if (alarmeDesligaEm > 0 && (long)(millis() - alarmeDesligaEm) >= 0) {
-    digitalWrite(PIN_ALARME_VERM, LOW);
-    alarmeDesligaEm = 0;
-  }
 }

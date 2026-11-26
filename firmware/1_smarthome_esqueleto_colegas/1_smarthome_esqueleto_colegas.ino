@@ -7,9 +7,9 @@
  *   - 1_smarthome_esqueleto_colegas.ino : Wi-Fi, pinos, controle /luz e rotas
  *   - web.h                             : Interface HTML/CSS/JS em PROGMEM
  *
- * Hardware: NodeMCU ESP8266 (LoLin V3)
+ * Hardware: NodeMCU ESP8266 (LoLin V3) — multiplexação para 1 resistor comum
  *   - Pino D1 (GPIO 5) -> LED Azul (Luz Principal - inicia acesa)
- *   - Pino D2 (GPIO 4) -> LED Vermelho (Alarme de Segurança - 3 segundos)
+ *   - Pino D2 (GPIO 4) -> LED Vermelho (Alarme intermitente até login do admin)
  *
  * Rede Wi-Fi própria (SoftAP):
  *   - SSID:  SmartHome_IoT  | Senha: 12345678
@@ -21,6 +21,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <MD5Builder.h>
+#include <Ticker.h>
 #include "web.h"
 
 // --- Configuração da Rede Própria (Access Point) ---
@@ -34,13 +35,20 @@ const String SENHA_ADMIN = "123";
 // --- Mapeamento de Pinos da NodeMCU ---
 const int PIN_LUZ_AZUL    = D1; // GPIO 5 - Luz Principal
 const int PIN_ALARME_VERM = D2; // GPIO 4 - Alarme de Segurança
-const unsigned long DURACAO_ALARME_MS = 3000;
+
+// --- Multiplexação dos LEDs (1 resistor compartilhado) e Alarme Intermitente ---
+const unsigned long INTERVALO_PISCA_ALARME_MS = 700; // 700 ms aceso / 700 ms apagado
+const unsigned long INTERVALO_MUX_MS          = 2;   // 2 ms por slot -> 4 slots = 8 ms (125 Hz)
+const uint8_t       SLOTS_MUX                 = 4;   // 3 slots Azul (75%) + 1 slot Vermelho (25%)
 
 ESP8266WebServer server(80);
+Ticker muxTicker;
 
 // --- Estado do Sistema ---
-bool luzAcesa = true;
-unsigned long alarmeDesligaEm = 0;
+volatile bool luzAcesa = true;
+volatile bool alarmeAtivo = false;
+volatile unsigned long alarmeInicioMs = 0;
+uint8_t slotMux = 0;
 String ultimoEventoLog = "Sistema iniciado. Luz principal acesa.";
 
 // ============================================================================
@@ -55,9 +63,47 @@ String gerarTokenMD5(String usuario, String senha, String acao) {
   return md5.toString();
 }
 
+void atualizarSaidaLeds() {
+  bool querAzul = luzAcesa;
+  bool querVermelho = alarmeAtivo &&
+    (((millis() - alarmeInicioMs) / INTERVALO_PISCA_ALARME_MS) % 2 == 0);
+
+  // Multiplexação (break-before-make): nunca deixa D1 e D2 em HIGH simultaneamente
+  if (querAzul && querVermelho) {
+    if (slotMux == 0) {
+      digitalWrite(PIN_LUZ_AZUL, LOW);
+      digitalWrite(PIN_ALARME_VERM, HIGH);
+    } else {
+      digitalWrite(PIN_ALARME_VERM, LOW);
+      digitalWrite(PIN_LUZ_AZUL, HIGH);
+    }
+    slotMux = (slotMux + 1) % SLOTS_MUX;
+  } else if (querAzul) {
+    digitalWrite(PIN_ALARME_VERM, LOW);
+    digitalWrite(PIN_LUZ_AZUL, HIGH);
+    slotMux = 0;
+  } else if (querVermelho) {
+    digitalWrite(PIN_LUZ_AZUL, LOW);
+    digitalWrite(PIN_ALARME_VERM, HIGH);
+    slotMux = 0;
+  } else {
+    digitalWrite(PIN_LUZ_AZUL, LOW);
+    digitalWrite(PIN_ALARME_VERM, LOW);
+    slotMux = 0;
+  }
+}
+
 void dispararLedAlarme() {
-  digitalWrite(PIN_ALARME_VERM, HIGH);
-  alarmeDesligaEm = millis() + DURACAO_ALARME_MS;
+  if (!alarmeAtivo) {
+    alarmeInicioMs = millis();
+  }
+  alarmeAtivo = true;
+}
+
+void desligarLedAlarme() {
+  if (alarmeAtivo) {
+    alarmeAtivo = false;
+  }
 }
 
 void registrarAlertaSeguranca(String motivo) {
@@ -80,7 +126,6 @@ void handleControleLuz() {
   // Qualquer perfil pode ligar a luz (ON)
   if (acao == "ON") {
     luzAcesa = true;
-    digitalWrite(PIN_LUZ_AZUL, HIGH);
     ultimoEventoLog = "Luz acesa por [" + (user != "" ? user : "visitante") + "]";
     Serial.println("[Ok] " + ultimoEventoLog);
     server.send(200, "application/json", "{\"status\":\"ok\",\"luz\":\"acesa\",\"msg\":\"" + ultimoEventoLog + "\"}");
@@ -102,7 +147,6 @@ void handleControleLuz() {
     }
 
     luzAcesa = false;
-    digitalWrite(PIN_LUZ_AZUL, LOW);
     ultimoEventoLog = "Luz apagada por [" + user + "]";
     Serial.println("[Ação] " + ultimoEventoLog);
 
@@ -121,6 +165,7 @@ void handleAdminLogin() {
   String u = server.arg("usuario");
   String s = server.arg("senha");
   if (u == ADMIN_USER && s == SENHA_ADMIN) {
+    desligarLedAlarme();
     String token = gerarTokenMD5(ADMIN_USER, SENHA_ADMIN, "OFF");
     server.send(200, "application/json", "{\"ok\":true,\"token\":\"" + token + "\"}");
     return;
@@ -134,6 +179,7 @@ void handleAdminLogin() {
 void handleStatus() {
   String json = "{";
   json += "\"luz_acesa\":" + String(luzAcesa ? "true" : "false") + ",";
+  json += "\"alarme_ativo\":" + String(alarmeAtivo ? "true" : "false") + ",";
   json += "\"ultimo_evento\":\"" + ultimoEventoLog + "\"";
   json += "}";
   server.send(200, "application/json", json);
@@ -144,7 +190,6 @@ void handleManutencaoFabrica() {
   String cmd = server.arg("cmd");
   if (cmd == "apagar_tudo") {
     luzAcesa = false;
-    digitalWrite(PIN_LUZ_AZUL, LOW);
     ultimoEventoLog = "[Manutenção] Luz apagada via /api/manutencao";
     Serial.println(ultimoEventoLog);
     server.send(200, "application/json", "{\"status\":\"ok\",\"msg\":\"Reset executado\"}");
@@ -160,8 +205,8 @@ void setup() {
   pinMode(PIN_LUZ_AZUL, OUTPUT);
   pinMode(PIN_ALARME_VERM, OUTPUT);
 
-  digitalWrite(PIN_LUZ_AZUL, HIGH);
-  digitalWrite(PIN_ALARME_VERM, LOW);
+  atualizarSaidaLeds();
+  muxTicker.attach_ms(INTERVALO_MUX_MS, atualizarSaidaLeds);
 
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
   WiFi.persistent(false);
@@ -191,9 +236,4 @@ void setup() {
 
 void loop() {
   server.handleClient();
-
-  if (alarmeDesligaEm > 0 && (long)(millis() - alarmeDesligaEm) >= 0) {
-    digitalWrite(PIN_ALARME_VERM, LOW);
-    alarmeDesligaEm = 0;
-  }
 }
