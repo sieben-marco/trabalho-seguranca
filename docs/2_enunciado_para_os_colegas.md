@@ -38,7 +38,7 @@ A interface web já está separada, mas a rota de controle do hardware (`/luz`, 
 ### Requisito 1 — Controle de Acesso por Papel (RBAC)
 - Qualquer perfil (`visitante` ou `admin`) pode enviar `acao=ON` para acender a luz.
 - Apenas o usuário `admin` autenticado pode executar `acao=OFF` para apagar a luz.
-- Tentativas não autorizadas devem acionar `registrarAlertaSeguranca(...)` (que acende o LED Vermelho de alarme por 3 segundos e retorna HTTP `403`).
+- Tentativas não autorizadas devem acionar `registrarAlertaSeguranca(...)` (que ativa o LED Vermelho de alarme piscando de forma intermitente até o login válido do administrador e retorna HTTP `403`).
 
 ### Requisito 2 — Autenticação do Administrador no Comando `OFF`
 - Quando `acao == "OFF"`, valide a credencial do administrador antes de apagar a luz:

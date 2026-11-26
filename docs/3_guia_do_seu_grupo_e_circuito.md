@@ -6,13 +6,13 @@ Este documento é o manual de bolso do seu grupo para montar o circuito na proto
 
 ## 1. Montagem do Circuito (Apenas NodeMCU + LEDs)
 
-Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor de Som. Vamos usar apenas a **NodeMCU ESP8266** e **2 LEDs** (com resistores de 220Ω a 470Ω):
+Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor de Som. Vamos usar apenas a **NodeMCU ESP8266**, **2 LEDs** e **1 resistor compartilhado** (220Ω a 470Ω — o firmware faz multiplexação a 125 Hz para permitir os dois LEDs acesos simultaneamente sem roubo de corrente):
 
 | Componente | Pino na NodeMCU (Serigrafia) | GPIO no Código | Função na Atividade |
 | :--- | :--- | :--- | :--- |
 | **LED Azul** (Anodo / perna maior) | Pino **`D1`** | `GPIO 5` | **Luz Principal da Casa Inteligente** (começa acesa; seu objetivo é apagá-la) |
-| **LED Vermelho** (Anodo / perna maior) | Pino **`D2`** | `GPIO 4` | **Alarme de Segurança** (acende por 3 segundos quando uma tentativa é bloqueada e apaga) |
-| **Catodos dos LEDs** (perna menor) | Pino **`G` (GND)** *(via resistor)* | `GND` | Terra comum na protoboard |
+| **LED Vermelho** (Anodo / perna maior) | Pino **`D2`** | `GPIO 4` | **Alarme de Segurança** (pisca intermitente a cada 700 ms após ataque ou login inválido e só apaga quando um `admin` faz login) |
+| **Catodos dos LEDs** (perna menor) | Pino **`G` (GND)** *(via 1 resistor compartilhado)* | `GND` | Terra comum na protoboard |
 
 > [!TIP]
 > **E se o seu grupo usar uma segunda NodeMCU como "Placa Atacante"?**
@@ -39,7 +39,7 @@ Baseado nas fotos da sua bancada, você **não precisa** do Relé nem do Sensor 
 - **Base no Artigo:** Seção 3.3 (pág. 1147) — A Equipe T6 trocou o `return` por um `print("FAILED")` durante testes e esqueceu de reverter. O sistema avisava que deu erro, mas executava os comandos mesmo assim.
 - **No Código dos Colegas (`1_smarthome_esqueleto_colegas.ino`):**
   Na função `handleControleLuz()`, já existe um `if (user != ADMIN_USER) { registrarAlertaSeguranca(...); } else { // TODO ... }` sem nenhuma dica de bug!
-  A função `registrarAlertaSeguranca()` acende o LED Vermelho por 3 segundos e envia o HTTP `403`, **mas não interrompe a função `handleControleLuz()`** se o colega esquecer de colocar `return;` dentro do `if`! E como o código do colega vai ficar dentro do `else`, mesmo que ele coloque `return;` no `else`, quem chamar `/luz?acao=OFF&user=visitante` entra no `if`, pula o `else` e apaga o LED Azul!
+  A função `registrarAlertaSeguranca()` ativa o LED Vermelho piscando de forma intermitente (até um `admin` fazer login) e envia o HTTP `403`, **mas não interrompe a função `handleControleLuz()`** se o colega esquecer de colocar `return;` dentro do `if`! E como o código do colega vai ficar dentro do `else`, mesmo que ele coloque `return;` no `else`, quem chamar `/luz?acao=OFF&user=visitante` entra no `if`, pula o `else` e apaga o LED Azul!
 - **Como explorar:**
   `http://192.168.4.1/luz?acao=OFF&user=visitante`
 

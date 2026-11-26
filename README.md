@@ -58,12 +58,12 @@ Se você é do **grupo aplicador**, siga esta ordem antes da aula:
 
 ## Montagem de Hardware (Apenas NodeMCU + 2 LEDs)
 
-Não é necessário usar módulo Relé nem Sensor de Som. O circuito usa apenas a **NodeMCU ESP8266** com 2 LEDs e resistor(es) limitador(es) de corrente:
+Não é necessário usar módulo Relé nem Sensor de Som. O circuito usa apenas a **NodeMCU ESP8266** com 2 LEDs e **1 único resistor limitador de corrente compartilhado no catodo comum** (o firmware realiza multiplexação por divisão de tempo a 125 Hz via `Ticker`, garantindo compatibilidade tanto com 1 resistor compartilhado quanto com 2 resistores individuais):
 
 ![Esquema do Circuito](docs/circuito.svg)
 
 - **LED Azul (`D1` / GPIO 5):** Luz Principal da Casa (inicia **acesa** ao ligar a placa).
-- **LED Vermelho (`D2` / GPIO 4):** Alarme de Segurança (acende por **3 segundos** após tentativa de acesso negado ou login inválido e apaga automaticamente).
+- **LED Vermelho (`D2` / GPIO 4):** Alarme de Segurança (pisca de forma intermitente a cada **700 ms** após tentativa de acesso negado, ataque ou login inválido, e **só desliga quando um administrador faz login válido** em `/admin`).
 
 ---
 
@@ -71,7 +71,7 @@ Não é necessário usar módulo Relé nem Sensor de Som. O circuito usa apenas 
 
 ### 1. Gravar o Firmware na NodeMCU (Arduino IDE)
 - **Placa:** `NodeMCU 1.0 (ESP-12E Module)` (pacote `esp8266 by ESP8266 Community`).
-- **Bibliotecas:** Apenas bibliotecas nativas do core ESP8266 (`ESP8266WiFi.h`, `ESP8266WebServer.h`, `MD5Builder.h`).
+- **Bibliotecas:** Apenas bibliotecas nativas do core ESP8266 (`ESP8266WiFi.h`, `ESP8266WebServer.h`, `MD5Builder.h`, `Ticker.h`).
 - **Monitor Serial:** `115200 baud`.
 - *(Linux/Fedora: caso dê `Permission denied` na porta `/dev/ttyUSB0`, adicione seu usuário ao grupo `dialout` com `sudo usermod -aG dialout $USER` e refaça o login.)*
 
